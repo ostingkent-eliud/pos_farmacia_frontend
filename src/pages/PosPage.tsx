@@ -15,7 +15,7 @@ import {
   Receipt,
   Printer,
 } from 'lucide-react';
-import { supabase, type ProductWithStock, type Customer } from '@/lib/supabase';
+import { database, type ProductWithStock, type Customer } from '@/lib/database';
 import {
   fetchProductsWithStock,
   fetchProductByBarcode,
@@ -53,7 +53,7 @@ export function PosPage() {
     try {
       const [prods, custs] = await Promise.all([
         fetchProductsWithStock(),
-        supabase.from('customers').select('*').order('name'),
+        database.from('customers').select('*').order('name'),
       ]);
       setProducts(prods);
       setCustomers(custs.data ?? []);
@@ -169,7 +169,7 @@ export function PosPage() {
     setProcessing(true);
     try {
       const folio = generateFolio('V');
-      const { data: sale, error: saleError } = await supabase
+      const { data: sale, error: saleError } = await database
         .from('sales')
         .insert({
           folio,
@@ -201,7 +201,7 @@ export function PosPage() {
         line_total: item.product.sale_price * item.quantity,
       }));
 
-      const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
+      const { error: itemsError } = await database.from('sale_items').insert(saleItems);
       if (itemsError) throw itemsError;
 
       // Reduce lot quantities (FEFO)
@@ -210,14 +210,14 @@ export function PosPage() {
         const lot = item.product.lots?.find((l) => l.id === item.lotId);
         if (!lot) continue;
         const newQty = lot.quantity - item.quantity;
-        await supabase
+        await database
           .from('lots')
           .update({ quantity: newQty, status: newQty <= 0 ? 'depleted' : 'active' })
           .eq('id', item.lotId);
       }
 
       // Log movement
-      await supabase.from('movements').insert({
+      await database.from('movements').insert({
         type: 'sale',
         entity_type: 'sale',
         entity_id: sale.id,
@@ -228,7 +228,7 @@ export function PosPage() {
 
       // Update loyalty points
       if (selectedCustomer) {
-        await supabase
+        await database
           .from('customers')
           .update({ loyalty_points: (selectedCustomer.loyalty_points ?? 0) + Math.floor(total / 10) })
           .eq('id', selectedCustomer.id);

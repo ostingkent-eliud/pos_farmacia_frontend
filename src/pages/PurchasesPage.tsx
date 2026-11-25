@@ -9,7 +9,7 @@ import {
   Package,
   Check,
 } from 'lucide-react';
-import { supabase, type ProductWithStock, type Supplier, type Purchase } from '@/lib/supabase';
+import { database, type ProductWithStock, type Supplier, type Purchase } from '@/lib/database';
 import { fetchProductsWithStock, formatCurrency, formatDateTime, formatDate } from '@/lib/helpers';
 import { Modal, Toast } from '@/components/Modal';
 
@@ -19,7 +19,9 @@ export function PurchasesPage() {
   const [tab, setTab] = useState<Tab>('suggested');
   const [products, setProducts] = useState<ProductWithStock[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [purchases, setPurchases] = useState<(Purchase & { items: { quantity: number; unit_cost: number }[] })[]>([]);
+  const [purchases, setPurchases] = useState<
+    (Purchase & { purchase_items: { quantity: number; unit_cost: number }[] })[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [showOrder, setShowOrder] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -28,8 +30,8 @@ export function PurchasesPage() {
     try {
       const [prods, sups, purs] = await Promise.all([
         fetchProductsWithStock(),
-        supabase.from('suppliers').select('*').order('name'),
-        supabase
+        database.from('suppliers').select('*').order('name'),
+        database
           .from('purchases')
           .select('*, purchase_items(quantity, unit_cost)')
           .order('created_at', { ascending: false })
@@ -272,7 +274,7 @@ function QuickOrderModal({
     try {
       const folio = `COMP${Date.now().toString(36).toUpperCase()}`;
       const supplier = suppliers.find((s) => s.id === supplierId);
-      const { data: purchase, error } = await supabase
+      const { data: purchase, error } = await database
         .from('purchases')
         .insert({
           folio,
@@ -301,13 +303,13 @@ function QuickOrderModal({
           expiry_date: i.expiryDate || null,
           line_total: i.product.cost_price * i.quantity,
         }));
-      const { error: itemsError } = await supabase.from('purchase_items').insert(purchaseItems);
+      const { error: itemsError } = await database.from('purchase_items').insert(purchaseItems);
       if (itemsError) throw itemsError;
 
       // Create lots for each item
       for (const item of items.filter((i) => i.quantity > 0)) {
         if (item.expiryDate) {
-          await supabase.from('lots').insert({
+          await database.from('lots').insert({
             product_id: item.product.id,
             lot_number: item.lotNumber || `LOT-${Date.now().toString(36)}`,
             quantity: item.quantity,
@@ -320,7 +322,7 @@ function QuickOrderModal({
       }
 
       // Log movement
-      await supabase.from('movements').insert({
+      await database.from('movements').insert({
         type: 'purchase',
         entity_type: 'purchase',
         entity_id: purchase.id,

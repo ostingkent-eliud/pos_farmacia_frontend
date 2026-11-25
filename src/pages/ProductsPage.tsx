@@ -12,7 +12,7 @@ import {
   Trash2,
   Filter,
 } from 'lucide-react';
-import { supabase, type ProductWithStock, type Lot, type Category, type Supplier } from '@/lib/supabase';
+import { database, type ProductWithStock, type Lot, type Category, type Supplier } from '@/lib/database';
 import { fetchProductsWithStock, formatCurrency, formatDate, daysUntil, expiryStatus } from '@/lib/helpers';
 import { Modal, ConfirmDialog, Toast } from '@/components/Modal';
 
@@ -35,8 +35,8 @@ export function ProductsPage() {
     try {
       const [prods, cats, sups] = await Promise.all([
         fetchProductsWithStock(),
-        supabase.from('categories').select('*').order('name'),
-        supabase.from('suppliers').select('*').order('name'),
+        database.from('categories').select('*').order('name'),
+        database.from('suppliers').select('*').order('name'),
       ]);
       setProducts(prods);
       setCategories(cats.data ?? []);
@@ -81,11 +81,11 @@ export function ProductsPage() {
   const handleWriteOff = async () => {
     if (!writeOffLot) return;
     try {
-      await supabase
+      await database
         .from('lots')
         .update({ status: 'written_off', quantity: 0 })
         .eq('id', writeOffLot.lot.id);
-      await supabase.from('movements').insert({
+      await database.from('movements').insert({
         type: 'write_off',
         entity_type: 'lot',
         entity_id: writeOffLot.lot.id,
@@ -545,9 +545,9 @@ function ProductForm({
         updated_at: new Date().toISOString(),
       };
       if (product) {
-        await supabase.from('products').update(data).eq('id', product.id);
+        await database.from('products').update(data).eq('id', product.id);
       } else {
-        await supabase.from('products').insert(data);
+        await database.from('products').insert(data);
       }
       onSaved();
     } catch (e) {

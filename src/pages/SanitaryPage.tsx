@@ -10,7 +10,7 @@ import {
   Stethoscope,
   User,
 } from 'lucide-react';
-import { supabase, type Prescription, type Customer, type Product } from '@/lib/supabase';
+import { database, type Prescription, type Customer, type Product } from '@/lib/database';
 import { formatDateTime } from '@/lib/helpers';
 import { Modal, Toast } from '@/components/Modal';
 
@@ -26,9 +26,9 @@ export function SanitaryPage() {
   const load = useCallback(async () => {
     try {
       const [pres, custs, prods] = await Promise.all([
-        supabase.from('prescriptions').select('*').order('created_at', { ascending: false }),
-        supabase.from('customers').select('*').order('name'),
-        supabase.from('products').select('*').eq('requires_prescription', true).order('name'),
+        database.from('prescriptions').select('*').order('created_at', { ascending: false }),
+        database.from('customers').select('*').order('name'),
+        database.from('products').select('*').eq('requires_prescription', true).order('name'),
       ]);
       setPrescriptions(pres.data ?? []);
       setCustomers(custs.data ?? []);
@@ -52,8 +52,8 @@ export function SanitaryPage() {
 
   const dispense = async (rx: Prescription) => {
     try {
-      await supabase.from('prescriptions').update({ status: 'dispensed' }).eq('id', rx.id);
-      await supabase.from('movements').insert({
+      await database.from('prescriptions').update({ status: 'dispensed' }).eq('id', rx.id);
+      await database.from('movements').insert({
         type: 'prescription',
         entity_type: 'prescription',
         entity_id: rx.id,
@@ -286,7 +286,7 @@ function PrescriptionForm({
           p?.active_ingredient?.toLowerCase().includes('anti');
       });
 
-      await supabase.from('prescriptions').insert({
+      await database.from('prescriptions').insert({
         prescription_number: num,
         patient_name: form.patient_name,
         patient_age: form.patient_age ? parseInt(form.patient_age) : null,

@@ -10,7 +10,7 @@ import {
   Activity,
   FileText,
 } from 'lucide-react';
-import { supabase, type Sale, type ProductWithStock, type Movement } from '@/lib/supabase';
+import { database, type Sale, type ProductWithStock, type Movement } from '@/lib/database';
 import { fetchProductsWithStock, formatCurrency, formatDateTime, daysUntil, expiryStatus } from '@/lib/helpers';
 
 export function ReportsPage() {
@@ -28,11 +28,11 @@ export function ReportsPage() {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
       const [todayRes, weekRes, itemsRes, prods, movs] = await Promise.all([
-        supabase.from('sales').select('*').gte('created_at', todayStart).eq('status', 'completed').order('created_at', { ascending: false }),
-        supabase.from('sales').select('*').gte('created_at', weekAgo).eq('status', 'completed').order('created_at', { ascending: false }),
-        supabase.from('sale_items').select('product_name, quantity, line_total').gte('created_at', weekAgo),
+        database.from('sales').select('*').gte('created_at', todayStart).eq('status', 'completed').order('created_at', { ascending: false }),
+        database.from('sales').select('*').gte('created_at', weekAgo).eq('status', 'completed').order('created_at', { ascending: false }),
+        database.from('sale_items').select('product_name, quantity, line_total').gte('created_at', weekAgo),
         fetchProductsWithStock(),
-        supabase.from('movements').select('*').order('created_at', { ascending: false }).limit(30),
+        database.from('movements').select('*').order('created_at', { ascending: false }).limit(30),
       ]);
 
       setTodaySales(todayRes.data ?? []);

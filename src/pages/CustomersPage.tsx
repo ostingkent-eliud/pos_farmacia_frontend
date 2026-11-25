@@ -12,7 +12,7 @@ import {
   Stethoscope,
   Pill,
 } from 'lucide-react';
-import { supabase, type Customer, type Sale } from '@/lib/supabase';
+import { database, type Customer, type Sale } from '@/lib/database';
 import { formatCurrency, formatDateTime, formatDate } from '@/lib/helpers';
 import { Modal, Toast } from '@/components/Modal';
 
@@ -28,7 +28,7 @@ export function CustomersPage() {
 
   const load = useCallback(async () => {
     try {
-      const { data, error } = await supabase.from('customers').select('*').order('name');
+      const { data, error } = await database.from('customers').select('*').order('name');
       if (error) throw error;
       setCustomers(data ?? []);
     } catch (e) {
@@ -44,7 +44,7 @@ export function CustomersPage() {
 
   const viewCustomer = async (customer: Customer) => {
     setViewing(customer);
-    const { data } = await supabase
+    const { data } = await database
       .from('sales')
       .select('*')
       .eq('customer_id', customer.id)
@@ -286,9 +286,9 @@ function CustomerForm({
         notes: form.notes || null,
       };
       if (customer) {
-        await supabase.from('customers').update(data).eq('id', customer.id);
+        await database.from('customers').update(data).eq('id', customer.id);
       } else {
-        await supabase.from('customers').insert(data);
+        await database.from('customers').insert(data);
       }
       onSaved();
     } catch (e) {

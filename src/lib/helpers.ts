@@ -1,4 +1,4 @@
-import { supabase, type Product, type Lot, type ProductWithStock, type Category, type Supplier } from './supabase';
+import { database, type Product, type Lot, type ProductWithStock, type Category, type Supplier } from './database';
 
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('es-MX', {
@@ -41,19 +41,19 @@ export function expiryStatus(dateStr: string): 'expired' | 'critical' | 'warning
 }
 
 export async function fetchCategories(): Promise<Category[]> {
-  const { data, error } = await supabase.from('categories').select('*').order('name');
+  const { data, error } = await database.from('categories').select('*').order('name');
   if (error) throw error;
   return data ?? [];
 }
 
 export async function fetchSuppliers(): Promise<Supplier[]> {
-  const { data, error } = await supabase.from('suppliers').select('*').order('name');
+  const { data, error } = await database.from('suppliers').select('*').order('name');
   if (error) throw error;
   return data ?? [];
 }
 
 export async function fetchProductsWithStock(): Promise<ProductWithStock[]> {
-  const { data: products, error } = await supabase
+  const { data: products, error } = await database
     .from('products')
     .select('*, category:categories(*), supplier:suppliers(*)')
     .eq('is_active', true)
@@ -61,7 +61,7 @@ export async function fetchProductsWithStock(): Promise<ProductWithStock[]> {
   if (error) throw error;
   if (!products) return [];
 
-  const { data: lots } = await supabase
+  const { data: lots } = await database
     .from('lots')
     .select('*')
     .in('product_id', products.map((p) => p.id))
@@ -80,13 +80,13 @@ export async function fetchProductsWithStock(): Promise<ProductWithStock[]> {
 }
 
 export async function fetchProductById(id: string): Promise<Product | null> {
-  const { data, error } = await supabase.from('products').select('*').eq('id', id).maybeSingle();
+  const { data, error } = await database.from('products').select('*').eq('id', id).maybeSingle();
   if (error) throw error;
   return data;
 }
 
 export async function fetchProductByBarcode(barcode: string): Promise<ProductWithStock | null> {
-  const { data, error } = await supabase
+  const { data, error } = await database
     .from('products')
     .select('*, category:categories(*), supplier:suppliers(*)')
     .eq('barcode', barcode)
@@ -94,7 +94,7 @@ export async function fetchProductByBarcode(barcode: string): Promise<ProductWit
   if (error) throw error;
   if (!data) return null;
 
-  const { data: lots } = await supabase
+  const { data: lots } = await database
     .from('lots')
     .select('*')
     .eq('product_id', data.id)
