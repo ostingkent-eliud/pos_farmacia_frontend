@@ -57,3 +57,35 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+
+/* Alinear acentos del POS a la paleta azul / cian de AprobaSoft */
+.aprobasoft-pos [class*="border-emerald"],
+.aprobasoft-pos [class*="focus:border-emerald"]:focus {
+  border-color: #2563eb !important;
+}
+
+.aprobasoft-pos [class*="focus:ring-emerald"]:focus {
+  --tw-ring-color: rgba(37, 99, 235, 0.16) !important;
+}
+
+.aprobasoft-pos [class*="bg-emerald-100"],
+.aprobasoft-pos [class*="bg-emerald-50"] {
+  background-color: #e0f2fe !important;
+}
+
+.aprobasoft-pos [class*="text-emerald-700"],
+.aprobasoft-pos [class*="text-emerald-600"],
+.aprobasoft-pos [class*="text-emerald-500"] {
+  color: #0369a1 !important;
+}
+
+.aprobasoft-pos [class*="bg-emerald-600"],
+.aprobasoft-pos [class*="bg-emerald-500"] {
+  background-color: #2563eb !important;
+}
+
+.aprobasoft-pos [class*="hover:bg-emerald-700"]:hover,
+.aprobasoft-pos [class*="hover:bg-emerald-600"]:hover {
+  background-color: #1d4ed8 !important;
+}

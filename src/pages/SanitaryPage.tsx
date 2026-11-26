@@ -13,11 +13,13 @@ import {
 import { database, type Prescription, type Customer, type Product } from '@/lib/database';
 import { formatDateTime } from '@/lib/helpers';
 import { Modal, Toast } from '@/components/Modal';
+import { DUMMY_CUSTOMERS, DUMMY_PRESCRIPTIONS, DUMMY_PRODUCTS } from '@/data/dummyData';
 
 export function SanitaryPage() {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [usingDummy, setUsingDummy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState<'all' | 'antibiotic' | 'pending'>('all');
@@ -30,11 +32,27 @@ export function SanitaryPage() {
         database.from('customers').select('*').order('name'),
         database.from('products').select('*').eq('requires_prescription', true).order('name'),
       ]);
-      setPrescriptions(pres.data ?? []);
-      setCustomers(custs.data ?? []);
-      setProducts(prods.data ?? []);
-    } catch (e) {
-      console.error(e);
+
+      if (pres.data && pres.data.length > 0) {
+        setPrescriptions(pres.data);
+        setCustomers(custs.data?.length ? custs.data : DUMMY_CUSTOMERS);
+        setProducts(
+          prods.data?.length
+            ? prods.data
+            : (DUMMY_PRODUCTS.filter((p) => p.requires_prescription) as unknown as Product[]),
+        );
+        setUsingDummy(false);
+      } else {
+        setPrescriptions(DUMMY_PRESCRIPTIONS);
+        setCustomers(DUMMY_CUSTOMERS);
+        setProducts(DUMMY_PRODUCTS.filter((p) => p.requires_prescription) as unknown as Product[]);
+        setUsingDummy(true);
+      }
+    } catch {
+      setPrescriptions(DUMMY_PRESCRIPTIONS);
+      setCustomers(DUMMY_CUSTOMERS);
+      setProducts(DUMMY_PRODUCTS.filter((p) => p.requires_prescription) as unknown as Product[]);
+      setUsingDummy(true);
     } finally {
       setLoading(false);
     }
@@ -52,16 +70,22 @@ export function SanitaryPage() {
 
   const dispense = async (rx: Prescription) => {
     try {
-      await database.from('prescriptions').update({ status: 'dispensed' }).eq('id', rx.id);
-      await database.from('movements').insert({
-        type: 'prescription',
-        entity_type: 'prescription',
-        entity_id: rx.id,
-        description: `Receta ${rx.prescription_number} dispensada`,
-        user_name: 'Farmacéutico',
-      });
-      setToast({ message: 'Receta dispensada', type: 'success' });
-      load();
+      if (!usingDummy) {
+        await database.from('prescriptions').update({ status: 'dispensed' }).eq('id', rx.id);
+        await database.from('movements').insert({
+          type: 'prescription',
+          entity_type: 'prescription',
+          entity_id: rx.id,
+          description: `Receta ${rx.prescription_number} dispensada`,
+          user_name: 'Farmacéutico',
+        });
+        await load();
+      } else {
+        setPrescriptions((prev) =>
+          prev.map((item) => (item.id === rx.id ? { ...item, status: 'dispensed' } : item)),
+        );
+      }
+      setToast({ message: 'Receta dispensada y registrada en libro', type: 'success' });
     } catch (e) {
       console.error(e);
     }
@@ -70,7 +94,7 @@ export function SanitaryPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="animate-spin w-8 h-8 border-2 border-primary-600 border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -83,60 +107,70 @@ export function SanitaryPage() {
 
   return (
     <div className="p-4 space-y-4">
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Total recetas" value={stats.total} icon={ClipboardList} color="primary" />
-        <StatCard label="Antibióticos" value={stats.antibiotics} icon={Pill} color="danger" />
-        <StatCard label="Pendientes" value={stats.pending} icon={Clock} color="warning" />
+      {/* Estadísticas */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <StatCard label="Total recetas" value={stats.total} icon={ClipboardList} color="blue" />
+        <StatCard label="Antibióticos (Fracc. IV)" value={stats.antibiotics} icon={Pill} color="danger" />
+        <StatCard label="Pendientes por surtir" value={stats.pending} icon={Clock} color="warning" />
       </div>
 
-      {/* Filters + new */}
+      {/* Filtros + nueva receta */}
       <div className="flex flex-col sm:flex-row gap-3 justify-between">
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {[
             { id: 'all', label: 'Todas' },
             { id: 'antibiotic', label: 'Antibióticos' },
             { id: 'pending', label: 'Pendientes' },
-          ].map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFilter(f.id as typeof filter)}
-              className={`btn text-sm ${filter === f.id ? 'bg-primary-600 text-white' : 'btn-secondary'}`}
-            >
-              {f.label}
-            </button>
-          ))}
+          ].map((f) => {
+            const active = filter === f.id;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setFilter(f.id as typeof filter)}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
+                  active
+                    ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-sm shadow-blue-600/20'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {f.label}
+              </button>
+            );
+          })}
         </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary">
+        <button
+          onClick={() => setShowForm(true)}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-blue-600 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-600/20 hover:shadow-lg"
+        >
           <Plus size={18} />
           Nueva receta
         </button>
       </div>
 
-      {/* Prescriptions list */}
+      {/* Tarjetas de recetas */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {filtered.map((rx) => (
-          <div key={rx.id} className="card p-4">
+          <div key={rx.id} className="bg-white rounded-xl border border-slate-200/90 shadow-xs p-4 hover:border-sky-300 transition-colors">
             <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <div
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    rx.is_antibiotic ? 'bg-danger-100 text-danger-600' : 'bg-primary-100 text-primary-600'
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                    rx.is_antibiotic ? 'bg-rose-50 text-rose-600 border border-rose-200/80' : 'bg-sky-50 text-blue-600 border border-sky-200/80'
                   }`}
                 >
                   {rx.is_antibiotic ? <Pill size={20} /> : <ClipboardList size={20} />}
                 </div>
                 <div>
-                  <p className="font-mono text-sm font-semibold text-slate-900">{rx.prescription_number}</p>
+                  <p className="font-mono text-sm font-bold text-slate-900">{rx.prescription_number}</p>
                   <p className="text-xs text-slate-500">{formatDateTime(rx.created_at)}</p>
                 </div>
               </div>
               <span
-                className={`badge ${
+                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                   rx.status === 'dispensed'
-                    ? 'bg-primary-100 text-primary-700'
+                    ? 'bg-sky-100 text-blue-700'
                     : rx.status === 'registered'
-                      ? 'bg-warning-100 text-warning-700'
+                      ? 'bg-amber-100 text-amber-800'
                       : 'bg-slate-100 text-slate-600'
                 }`}
               >
@@ -146,22 +180,22 @@ export function SanitaryPage() {
 
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm">
-                <User size={14} className="text-slate-400" />
-                <span className="text-slate-700 font-medium">{rx.patient_name}</span>
-                {rx.patient_age && <span className="text-xs text-slate-500">{rx.patient_age} años</span>}
+                <User size={14} className="text-blue-600" />
+                <span className="text-slate-800 font-semibold">{rx.patient_name}</span>
+                {rx.patient_age && <span className="text-xs text-slate-500">· {rx.patient_age} años</span>}
               </div>
               {rx.doctor_name && (
                 <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <Stethoscope size={14} className="text-slate-400" />
+                  <Stethoscope size={14} className="text-cyan-600" />
                   <span>{rx.doctor_name}</span>
                   {rx.doctor_license && <span className="text-xs text-slate-400">· Céd. {rx.doctor_license}</span>}
                 </div>
               )}
-              <div className="pt-2 border-t border-slate-50">
-                <p className="text-xs text-slate-500 mb-1">Productos recetados:</p>
+              <div className="pt-2 border-t border-slate-100">
+                <p className="text-xs text-slate-500 mb-1.5">Productos recetados:</p>
                 <div className="flex flex-wrap gap-1.5">
                   {rx.product_names.map((name, i) => (
-                    <span key={i} className="badge bg-slate-100 text-slate-700">
+                    <span key={i} className="inline-flex items-center rounded-lg bg-sky-50 border border-sky-200/70 px-2.5 py-0.5 text-xs font-medium text-blue-800">
                       {name}
                     </span>
                   ))}
@@ -170,9 +204,12 @@ export function SanitaryPage() {
               {rx.notes && <p className="text-xs text-slate-500 italic pt-1">"{rx.notes}"</p>}
             </div>
 
-            <div className="flex gap-2 mt-4 pt-3 border-t border-slate-50">
+            <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
               {rx.status === 'registered' && (
-                <button onClick={() => dispense(rx)} className="btn-primary text-xs py-2 flex-1">
+                <button
+                  onClick={() => dispense(rx)}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-3 py-2 text-xs font-semibold text-white shadow-xs hover:opacity-95"
+                >
                   <Check size={14} />
                   Dispensar
                 </button>
@@ -197,8 +234,8 @@ export function SanitaryPage() {
       </div>
 
       {filtered.length === 0 && (
-        <div className="text-center py-16 text-slate-400">
-          <ClipboardList size={48} className="mx-auto mb-3 opacity-30" />
+        <div className="text-center py-16 text-slate-400 bg-white rounded-xl border border-slate-200/80">
+          <ClipboardList size={48} className="mx-auto mb-3 opacity-30 text-blue-600" />
           <p className="text-sm">No hay recetas registradas</p>
         </div>
       )}
@@ -207,11 +244,16 @@ export function SanitaryPage() {
         <PrescriptionForm
           customers={customers}
           products={products}
+          usingDummy={usingDummy}
           onClose={() => setShowForm(false)}
-          onSaved={() => {
+          onSaved={(newRx) => {
+            if (usingDummy && newRx) {
+              setPrescriptions((prev) => [newRx, ...prev]);
+            } else {
+              load();
+            }
             setShowForm(false);
-            load();
-            setToast({ message: 'Receta registrada', type: 'success' });
+            setToast({ message: 'Receta registrada en control sanitario', type: 'success' });
           }}
         />
       )}
@@ -230,15 +272,15 @@ function StatCard({
   label: string;
   value: number;
   icon: typeof ClipboardList;
-  color: 'primary' | 'danger' | 'warning';
+  color: 'blue' | 'danger' | 'warning';
 }) {
-  const colors = {
-    primary: 'bg-primary-50 text-primary-700 border-primary-200',
-    danger: 'bg-danger-50 text-danger-700 border-danger-200',
-    warning: 'bg-warning-50 text-warning-700 border-warning-200',
+  const styles = {
+    blue: 'bg-sky-50/80 text-blue-800 border-sky-200/90',
+    danger: 'bg-rose-50/80 text-rose-800 border-rose-200/90',
+    warning: 'bg-amber-50/80 text-amber-800 border-amber-200/90',
   };
   return (
-    <div className={`flex items-center gap-3 p-4 rounded-xl border ${colors[color]}`}>
+    <div className={`flex items-center gap-3 p-4 rounded-xl border shadow-xs ${styles[color]}`}>
       <Icon size={24} />
       <div>
         <p className="text-2xl font-bold">{value}</p>
@@ -251,13 +293,15 @@ function StatCard({
 function PrescriptionForm({
   customers,
   products,
+  usingDummy,
   onClose,
   onSaved,
 }: {
   customers: Customer[];
   products: Product[];
+  usingDummy: boolean;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (created?: Prescription) => void;
 }) {
   const [form, setForm] = useState({
     patient_name: '',
@@ -274,19 +318,21 @@ function PrescriptionForm({
   const save = async () => {
     setSaving(true);
     try {
-      const num = `RX${Date.now().toString(36).toUpperCase()}`;
+      const num = `RX-${Date.now().toString(36).toUpperCase()}`;
       const productNames = selectedProducts
         .map((id) => products.find((p) => p.id === id)?.name)
         .filter(Boolean) as string[];
       const isAntibiotic = selectedProducts.some((id) => {
         const p = products.find((p) => p.id === id);
-        return p?.active_ingredient?.toLowerCase().includes('amox') ||
+        return (
+          p?.active_ingredient?.toLowerCase().includes('amox') ||
           p?.active_ingredient?.toLowerCase().includes('cipro') ||
           p?.active_ingredient?.toLowerCase().includes('azit') ||
-          p?.active_ingredient?.toLowerCase().includes('anti');
+          p?.active_ingredient?.toLowerCase().includes('anti')
+        );
       });
 
-      await database.from('prescriptions').insert({
+      const payload = {
         prescription_number: num,
         patient_name: form.patient_name,
         patient_age: form.patient_age ? parseInt(form.patient_age) : null,
@@ -296,10 +342,20 @@ function PrescriptionForm({
         product_ids: selectedProducts,
         product_names: productNames,
         is_antibiotic: isAntibiotic || form.is_antibiotic,
-        status: 'registered',
+        status: 'registered' as const,
         notes: form.notes || null,
-      });
-      onSaved();
+      };
+
+      if (!usingDummy) {
+        await database.from('prescriptions').insert(payload);
+        onSaved();
+      } else {
+        onSaved({
+          ...payload,
+          id: `rx-${Date.now()}`,
+          created_at: new Date().toISOString(),
+        } as unknown as Prescription);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -355,7 +411,14 @@ function PrescriptionForm({
           <label className="label">Cliente vinculado (opcional)</label>
           <select
             value={form.customer_id}
-            onChange={(e) => setForm({ ...form, customer_id: e.target.value })}
+            onChange={(e) => {
+              const selected = customers.find((c) => c.id === e.target.value);
+              setForm({
+                ...form,
+                customer_id: e.target.value,
+                patient_name: form.patient_name || selected?.name || '',
+              });
+            }}
             className="input"
           >
             <option value="">Sin vincular</option>
@@ -368,11 +431,11 @@ function PrescriptionForm({
         </div>
         <div>
           <label className="label">Productos recetados</label>
-          <div className="space-y-1.5 max-h-48 overflow-y-auto border border-slate-200 rounded-lg p-2">
+          <div className="space-y-1.5 max-h-48 overflow-y-auto border border-slate-200 rounded-xl p-2">
             {products.map((p) => (
               <label
                 key={p.id}
-                className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 cursor-pointer"
+                className="flex items-center gap-2 p-2 rounded-lg hover:bg-sky-50/50 cursor-pointer"
               >
                 <input
                   type="checkbox"
@@ -381,7 +444,7 @@ function PrescriptionForm({
                     if (e.target.checked) setSelectedProducts([...selectedProducts, p.id]);
                     else setSelectedProducts(selectedProducts.filter((id) => id !== p.id));
                   }}
-                  className="w-4 h-4 rounded text-primary-600 focus:ring-primary-500"
+                  className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-sm text-slate-700">{p.name}</span>
                 <span className="text-xs text-slate-400 ml-auto">{p.active_ingredient}</span>
@@ -404,7 +467,7 @@ function PrescriptionForm({
             type="checkbox"
             checked={form.is_antibiotic}
             onChange={(e) => setForm({ ...form, is_antibiotic: e.target.checked })}
-            className="w-4 h-4 rounded text-primary-600"
+            className="w-4 h-4 rounded text-blue-600"
           />
           <span className="text-sm text-slate-700">Marcar como antibiótico (libro de control)</span>
         </label>
@@ -412,7 +475,11 @@ function PrescriptionForm({
           <button onClick={onClose} className="btn-secondary">
             Cancelar
           </button>
-          <button onClick={save} disabled={saving || !form.patient_name || selectedProducts.length === 0} className="btn-primary">
+          <button
+            onClick={save}
+            disabled={saving || !form.patient_name || selectedProducts.length === 0}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+          >
             {saving ? <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : 'Registrar receta'}
           </button>
         </div>
